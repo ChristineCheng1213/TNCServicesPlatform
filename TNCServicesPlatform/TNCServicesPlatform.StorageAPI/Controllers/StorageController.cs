@@ -26,13 +26,18 @@ namespace TNCServicesPlatform.StorageAPI.Controllers
         private const string CosmosDBName = "goldenmonkey";
         private const string CosmosDBCollectionName = "animalimagesDemo";
         private const string BlobStorageContainerName = "animalimages";
+        private const string BlobStorageBlobName = "AnimalImageDemo";
 
         private const string LocationCollectionName = "animalLocation";
 
         // TODO: use config
         private string BlobStorageCS;
+        private string SasToken;
+        private string SasUrl;
         private string CosmosDBKey;
         private string CosmosDBUrl = "https://tncdb4test.documents.azure.com:443";
+        private string BlobStorageUrl = "https://animalimages.blob.core.windows.net";
+
 
         private readonly CloudStorageAccount BlobStorageAccount;
         private readonly DocumentClient CosmosDBClient;
@@ -48,15 +53,61 @@ namespace TNCServicesPlatform.StorageAPI.Controllers
 
             BlobStorageCS = _kv.GetKeyByName("BlobStorageCS").Result.Value;
             CosmosDBKey = _kv.GetKeyByName("CosmosDBKey").Result.Value;
+            SasToken = _kv.GetKeyByName("SasToken").Result.Value;
 
             BlobStorageAccount = CloudStorageAccount.Parse(BlobStorageCS);
             CosmosDBClient = new DocumentClient(new Uri(CosmosDBUrl), CosmosDBKey);
             CosmosDBCollectionUri = UriFactory.CreateDocumentCollectionUri(CosmosDBName, CosmosDBCollectionName);
             LocationCollectionUri = UriFactory.CreateDocumentCollectionUri(CosmosDBName, LocationCollectionName);
-
-
-
+            SasUrl = BlobStorageUrl + "/" + BlobStorageContainerName + "/" + BlobStorageBlobName + SasToken;
         }
+
+
+        [HttpGet]
+        [Route("GetSasUrl")]
+        public string getSasUrl()
+        {
+            try
+            {
+                return SasUrl;
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceError(ex.ToString());
+                throw;
+            }
+        }
+
+        // POST api/values
+        [HttpPost]
+        [Route("Upload3")]
+        public async Task<AnimalImage> UploadImage3([FromBody] AnimalImage animalImage)
+        {
+            try
+            {
+                //var key = await _kv.GetKeyByName("WebSiteKey");
+                CloudBlobClient blobClient = BlobStorageAccount.CreateCloudBlobClient();
+                CloudBlobContainer container = blobClient.GetContainerReference(BlobStorageContainerName);
+                await container.CreateIfNotExistsAsync();
+
+                animalImage.Id = Guid.NewGuid().ToString().ToLowerInvariant();
+                animalImage.ImageName = animalImage.ImageName;
+                animalImage.ImageBlob = BlobStorageBlobName;
+                animalImage.UploadBlobSASUrl = SasUrl;
+
+                // upload data to Cosmos DB
+                await CosmosDBClient.UpsertDocumentAsync(CosmosDBCollectionUri, animalImage);
+
+                //return blob url for uploading image
+                return animalImage;
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceError(ex.ToString());
+                throw;
+            }
+        }
+
 
         // POST api/values
         [HttpPost]
@@ -65,7 +116,7 @@ namespace TNCServicesPlatform.StorageAPI.Controllers
         {
             try
             {
-                var key = await _kv.GetKeyByName("WebSiteKey");
+                //var key = await _kv.GetKeyByName("WebSiteKey");
                 CloudBlobClient blobClient = BlobStorageAccount.CreateCloudBlobClient();
                 CloudBlobContainer container = blobClient.GetContainerReference(BlobStorageContainerName);
                 await container.CreateIfNotExistsAsync();
@@ -78,7 +129,7 @@ namespace TNCServicesPlatform.StorageAPI.Controllers
                 // to the Azure Storage Service. The container on the service that this object represents may
                 // or may not exist at this point. If it does exist, the properties will not yet have been
                 // popluated on this object.
-                CloudBlockBlob blockblob = container.GetBlockBlobReference(animalImage.ImageBlob);
+                CloudBlockBlob blockblob = container.GetBlockBlobReference("AnimalImageDemo");
                 animalImage.UploadBlobSASUrl = Utils.GenerateWriteSasUrl(blockblob);
 
                 // upload data to Cosmos DB
@@ -96,6 +147,9 @@ namespace TNCServicesPlatform.StorageAPI.Controllers
             }
         }
 
+  
+
+
         // POST api/values
         [HttpPost]
         [Route("Upload")]
@@ -105,7 +159,7 @@ namespace TNCServicesPlatform.StorageAPI.Controllers
             {
                 var animalImage = new AnimalImage();
 
-                var key = await _kv.GetKeyByName("WebSiteKey");
+                //var key = await _kv.GetKeyByName("WebSiteKey");
                 CloudBlobClient blobClient = BlobStorageAccount.CreateCloudBlobClient();
                 CloudBlobContainer container = blobClient.GetContainerReference(BlobStorageContainerName);
                 await container.CreateIfNotExistsAsync();

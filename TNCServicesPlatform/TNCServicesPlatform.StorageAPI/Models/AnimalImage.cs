@@ -15,6 +15,8 @@ namespace TNCServicesPlatform.StorageAPI.Models
 
         public string Tag { get; set; }
 
+        public string PredictedTag { get; set; }
+
         public string ImageName { get; set; }
 
         public string ImageBlob { get; set; }
